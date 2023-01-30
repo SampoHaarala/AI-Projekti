@@ -116,40 +116,61 @@ class Process:
 
     def process(self):
         if self.operator == '+':
-            for node1 in self.startNodes:
-                for node2 in self.startNodes:
+
+            startNodes = self.startNodes
+
+            for node1 in startNodes:
+                for node2 in startNodes:
                     if node1 == node2:
                         pass
                     elif node1.concept == node2.concept:
                         newNode = self.doConceptSum(node1, node2)
-                        self.startNodes.pop(node1)
-                        self.startNodes.pop(node2)
-                        self.startNodes.append(newNode)
+                        startNodes.pop(node1)
+                        startNodes.pop(node2)
+                        startNodes.append(newNode)
                 
-            mergingPoint = self.findMergingPoint(self.startNodes)
-            names = self.findNames(self.startNodes)
+            mergingPoint = self.findMergingPoint(startNodes)
+            names = self.findNames(startNodes)
 
-            self.endNodes.append(ItemNode(self.startNodes, self, names, mergingPoint, 1))
+            self.endNodes.append(ItemNode(startNodes, self, names, mergingPoint, 1))
             
         elif self.operator == 'read':
-            nodes = self.startNodes
+            sentences = []
+            sentence = []
 
             text = ""
-            for node in nodes:
+            for node in self.startNodes:
                 text += node.name[0]
+                text += " "
+                if node.names[0] == '.':
+                    sentences.append(self.readSentence(sentence))
+                    sentence = []
+                else:
+                    sentence.append(node)
+            if len(sentence) > 0:
+                sentences.append(self.readSentence(sentence))
+            
+            concept = self.findMergingPoint(sentences)
 
-            parts = []
-            while len(nodes) != 0:
-                part, nodes = self.readSentenceToParts(nodes)
-                parts.extend(part)
-
-            parts = self.processWordParts(parts)
-            concept = {}
-            concept = Process(parts, '+', self).process()
-
-            self.endNodes.append(ItemNode(parts, self, [text, 'sentence'], concept, 1))
+            self.endNodes.append(ItemNode(self.startNodes, self, [text, "paragraph"], concept, 1))
                 
         return self.endNodes
+    
+    def readSentence(self, nodes):
+        parts = []
+
+        text = ""
+        for node in nodes:
+            text += node.names[0]
+            text += " "
+
+        while len(nodes) != 0:
+            part, nodes = self.readSentenceToParts(nodes)
+            parts.extend(part)
+        
+        parts = self.processWordParts(parts)
+        concept = Process(parts, '+', self).process()
+        return ItemNode(parts, self, [text, 'sentence'], concept, 1)
 
     def processWordParts(self, parts): # Condense parts of a sentence into a subject, action, and object.
         newNodes = []
