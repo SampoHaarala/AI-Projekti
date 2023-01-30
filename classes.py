@@ -105,8 +105,6 @@ class ItemNode:
         return "None"
         
                 
-
-
 class Process:
     def __init__(self, startNodes, operator, parentProcesses = [], endNodes = []):
         self.startNodes = startNodes
@@ -131,7 +129,7 @@ class Process:
             mergingPoint = self.findMergingPoint(self.startNodes)
             names = self.findNames(self.startNodes)
 
-            newNode = ItemNode(self.startNodes, self, names, mergingPoint, 1)
+            self.endNodes.append(ItemNode(self.startNodes, self, names, mergingPoint, 1))
             
         elif self.operator == 'read':
             nodes = self.startNodes
@@ -145,12 +143,11 @@ class Process:
                 part, nodes = self.readSentenceToParts(nodes)
                 parts.extend(part)
 
-            for part in parts:
-                value += part.value
+            parts = self.processWordParts(parts)
+            concept = {}
+            concept = Process(parts, '+', self).process()
 
-            self.endNodes.append(ItemNode(self.processWordParts(parts), self, ['sentence', text], 'sentence', value))
-            
-            # TODO: Jatka tätä
+            self.endNodes.append(ItemNode(parts, self, [text, 'sentence'], concept, 1))
                 
         return self.endNodes
 
@@ -228,10 +225,11 @@ class Process:
             if 'conjunction' in node.concept and keyCount == 1:
                 keyCount -= 1
             if node.getWordCategory() in categories:
-                if node.concept in keyCategories:
-                    keyCount += 1
-                    if keyCount > 1:
-                        break
+                for category in keyCategories:
+                    if category in keyCategories:
+                        keyCount += 1
+                        if keyCount > 1:
+                            break
                 if node.getWordCategory() in foundWords:
                     foundWords[node.getWordCategory()].append(node)
                 else:
