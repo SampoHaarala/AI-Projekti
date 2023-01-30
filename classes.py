@@ -12,7 +12,7 @@ import math
 # The overall behaviour should have the goal of finding out more information from the data learned.
 # Depending on the start nodes, values can be set using polarities(positive or negative values).
 
-# The "classes" file has the internal workings of the model. Logic contains the methods of receiving input.
+# The "classes" file has the internal workings of the model. Input contains the methods of receiving input.
 
 global nodes
 nodes = []
