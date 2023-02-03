@@ -14,14 +14,18 @@ import math
 
 # The "classes" file has the internal workings of the model. Input contains the methods of receiving input.
 
-global nodes
-nodes = []
+global allNodes
+allNodes = {}
+global unsureNodes
+unsureNodes = {}
 global processes
-processes = []
+processes = {}
+global recentProcesses
+recentProcesses = []
 
 
 class ItemNode:
-    def __init__(self, parentNodes, parentProcesses, names=[], concept = {}, value=0): # !!!Remember to define new variables to __getattribute__!!!!
+    def __init__(self, parentNodes, parentProcesses, names=[], concept = {}, value=float(0)): # !!!Remember to define new variables to __getattribute__!!!!
         self.parentNodes = parentNodes # List of parents # Only one generation
         # Item nodes with number concept don't have parent nodes
         self.parentProcesses = parentProcesses # List of processes operators
@@ -33,7 +37,13 @@ class ItemNode:
         self.value = value # Polarity is decided by a positive or negative value.
         # The complexity of an item node is determined by the value. The closer it's to zero, the simpler it is. Value should never be zero.
 
-        nodes.append(self)
+        self.addToAllNodes()
+
+    def addToAllNodes(self):
+        for concept in self.concept:
+            if concept in allNodes:
+                if self not in allNodes[concept]: allNodes[concept].append(concept)
+            else: allNodes[concept] = [self]
 
     def getID(self):
         id = str(self.concept) + str(self.value)
@@ -112,23 +122,12 @@ class Process:
         self.parentProcesses = parentProcesses
         self.endNodes = endNodes
 
-        processes.append(self)
+        if processes[operator]: processes[operator].append(self)
+        else: processes[operator] = [self]
 
     def process(self):
         if self.operator == '+':
-
-            startNodes = self.startNodes
-
-            for node1 in startNodes:
-                for node2 in startNodes:
-                    if node1 == node2:
-                        pass
-                    elif node1.concept == node2.concept:
-                        newNode = self.doConceptSum(node1, node2)
-                        startNodes.pop(node1)
-                        startNodes.pop(node2)
-                        startNodes.append(newNode)
-                
+            startNodes = self.checkForDuplicateConcepts(self.startNodes)
             mergingPoint = self.findMergingPoint(startNodes)
             names = self.findNames(startNodes)
 
@@ -137,12 +136,11 @@ class Process:
         elif self.operator == 'read':
             sentences = []
             sentence = []
-
             text = ""
             for node in self.startNodes:
                 text += node.name[0]
                 text += " "
-                if node.names[0] == '.':
+                if 'punctuation' in node.concept:
                     sentences.append(self.readSentence(sentence))
                     sentence = []
                 else:
@@ -153,23 +151,59 @@ class Process:
             concept = self.findMergingPoint(sentences)
 
             self.endNodes.append(ItemNode(self.startNodes, self, [text, "paragraph"], concept, 1))
+
+        elif self.operator == '*':
+            startNodes = self.checkForDuplicateConcepts(self.startNodes)
+            startNode = startNodes[0]
+            startNodes.pop(0)
+            for node in startNodes:
+                for concept in node.concept:
+                    if concept in startNode.concept: startNode.concept[concept] *= node.concept[concept]
+                    else: 
+                        startNode.concept[concept] = node.concept[concept]
+                        allNodes[concept].append(startNode)
+                    if startNode.concept[concept] < 0.1: startNode.concept.pop(concept)
+            self.endNodes.append(startNode)
                 
         return self.endNodes
+
+    def checkForDuplicateConcepts(self, startNodes):
+        for node1 in startNodes:
+                for node2 in startNodes:
+                    if node1 == node2:
+                        pass
+                    elif node1.concept == node2.concept:
+                        newNode = self.doConceptSum(node1, node2)
+                        startNodes.pop(node1)
+                        startNodes.pop(node2)
+                        startNodes.append(newNode)
+        return startNodes
     
     def readSentence(self, nodes):
-        parts = []
-
         text = ""
         for node in nodes:
             text += node.names[0]
             text += " "
 
+        parts = []
+        unsureWordNodes = []
+        currentNodes = nodes
         while len(nodes) != 0:
-            part, nodes = self.readSentenceToParts(nodes)
+            part, currentNodes, unsureNodes = self.readPartFromSentence(currentNodes)
             parts.extend(part)
+            unsureWordNodes.extend(unsureNodes)
         
         parts = self.processWordParts(parts)
         concept = Process(parts, '+', self).process()
+        if len(unsureWordNodes) != 0:
+            newStartNodes = nodes
+            for node in unsureWordNodes:
+                newStartNodes.pop(node)
+                s = [node]
+                s.extend(parts)
+                Process(s, '*', self).process()
+                self.read
+
         return ItemNode(parts, self, [text, 'sentence'], concept, 1)
 
     def processWordParts(self, parts): # Condense parts of a sentence into a subject, action, and object.
@@ -241,6 +275,7 @@ class Process:
         keyCategories = ['noun', 'pronoun', 'verb']
         keyCount = 0
         foundWords = {}
+        foundUnsureWords = []
         for node in nodes:
             categories = ['noun', 'pronoun', 'verb', 'adverb', 'adjective,' 'preposition', 'conjunction', 'interjection']
             if 'conjunction' in node.concept and keyCount == 1:
@@ -255,16 +290,19 @@ class Process:
                     foundWords[node.getWordCategory()].append(node)
                 else:
                     foundWords[node.getWordCategory()] = [node]
-                nodes.pop(node)
             else:
+                if len(node.concept) == 0:
+                    if node in input.unsureWords:
+                        foundUnsureWords.append(node)
                 print("Word type not defined!: " + node.name)
-        return foundWords, nodes
+            nodes.pop(node)
+        return foundWords, nodes, foundUnsureWords
             
     def findCommonConcept(nodes = []):
         conceptAppearances = {}
         i = 0
         for node in nodes:
-            for concept in node.concept:
+            for concept in node.concept.keys():
                 if concept not in conceptAppearances:
                     conceptAppearances[concept] = [node]
                 else:
@@ -316,7 +354,7 @@ class Process:
     def makeConceptList(nodes = []):
         list = []
         for node in nodes:
-            for concept in node:
+            for concept in node.concept:
                 if concept not in list:
                     list.append(concept)
         return list
@@ -329,8 +367,7 @@ class Process:
                 else: dicto[node.concept] = node
         return dicto
     
-    def doConceptSum(self, node1, node2): #TODO: Suunnittele koko summaus prosessi uudelleen. Summaus on prosessille myös väärä nimi.
-        # Jos konseptit asetetaan avaruuteen, jonka ulottovuudet on konseptien lukumäärä, ja value on kordinaatti jokaisella konseptin lineaarisella ulottovuudella, summa pisteen pitäis olla mahdollisimman lähellä kaikkia pisteitä.
+    def doConceptSum(self, node1, node2):
         if node1.concept == node2.concept:
             value = node1.value + node2.value
             newItem = ItemNode([node1, node2], self, [node1.names[0], node2.names[0]], node1.concept, value)    
