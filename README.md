@@ -6,4 +6,4 @@ Data is constructed using processes. Processes can be math functions like +/- or
 The overall behaviour should have the goal of expanding. By this I mean finding out more information.
 Depending on the start nodes, values can be set using polarities(positive or negative values).
 # Update
-This is now an older model. I figured that the Item Node -class was unneccessary and lacked adaptility. I figured the same result could be received by just using vectors. Check out the NewModel.pdf for how I'm imagining the new model to work.
+This is now an older model. I'll not upload the code here but check out the NewModel.pdf for how I'm imagining the new model to work.
